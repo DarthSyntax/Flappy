@@ -29,8 +29,10 @@ public class Flappy extends ApplicationAdapter {
 	float velocity = 0;
 	float min = 0.45f;
 	float max = 0.75f;
+	float gap;
 	int pipeCount = 0;
 	ArrayList<Integer> pipeXs;
+	ArrayList<Integer> gapXs;
 	ArrayList<Float> pipeTopLength;
 	ArrayList<Float> pipeBottomLength;
 	Random rand;
@@ -42,6 +44,7 @@ public class Flappy extends ApplicationAdapter {
 	Rectangle playerRect;
 	ArrayList<Rectangle> pipeTopRect;
 	ArrayList<Rectangle> pipeBottomRect;
+	ArrayList<Rectangle> gapRect;
 
 	BitmapFont font;
 	
@@ -56,37 +59,35 @@ public class Flappy extends ApplicationAdapter {
 		pipeBottom = new Texture("bottomtube.png");
 		pipeTop = new Texture("toptube.png");
 		pipeXs = new ArrayList<Integer>();
+		gapXs = new ArrayList<Integer>();
 		pipeTopLength = new ArrayList<Float>();
 		pipeBottomLength = new ArrayList<Float>();
 		playerRect = new Rectangle();
 		pipeTopRect = new ArrayList<Rectangle>();
 		pipeBottomRect = new ArrayList<Rectangle>();
+		gapRect = new ArrayList<Rectangle>();
+
 		rand = new Random();
 		playerXCoord = Gdx.graphics.getWidth() / 2 - player.getWidth() / 2;
 		font = new BitmapFont();
 		font.getData().setScale(3);
-		timer = new Timer();
-		timer.scheduleAtFixedRate(new TimerTask() {
-			@Override
-			public void run() {
-
-				score++;
-
-				Gdx.app.log("Score", Integer.toString(score));
-			}
-		}, 3500, 2600);
 
 	}
 
 	public void makePipes () {
+		//To randomize the height of the pipes to challenge the player
 		float height = min + rand.nextFloat() * (max - min);
 
 		//Gap between pipes will be roughly a quarter of the screen
-		float gap = Gdx.graphics.getHeight()/4.2f;
+		gap = Gdx.graphics.getHeight()/4.2f;
 		float bottomHeight = height * -Gdx.graphics.getHeight();
+
+		//y = screen height + bottom height + gap
+		//y - screen height - bottom height = gap
 		pipeTopLength.add(Gdx.graphics.getHeight() + bottomHeight + gap);
 		pipeBottomLength.add(bottomHeight);
 		pipeXs.add(Gdx.graphics.getWidth());
+		gapXs.add(Gdx.graphics.getWidth());
 	}
 
 	@Override
@@ -105,12 +106,19 @@ public class Flappy extends ApplicationAdapter {
 
 			pipeBottomRect.clear();
 			pipeTopRect.clear();
+			gapRect.clear();
 			for (int i = 0; i < pipeXs.size(); i++) {
 				batch.draw(pipeTop, pipeXs.get(i), pipeTopLength.get(i));
 				batch.draw(pipeBottom, pipeXs.get(i), pipeBottomLength.get(i));
 				pipeXs.set(i, pipeXs.get(i) - 7);
+				gapXs.set(i, gapXs.get(i) - 7);
+
 				pipeTopRect.add(new Rectangle(pipeXs.get(i), pipeTopLength.get(i), pipeTop.getWidth(), pipeTop.getHeight()));
 				pipeBottomRect.add(new Rectangle(pipeXs.get(i), pipeBottomLength.get(i), pipeBottom.getWidth(), pipeBottom.getHeight()));
+
+				//Sets the rectangle height to the entirety of the screen so scoring can happen when passing through the gap
+				//This can also happen when the player hits the pipe, but an if statement about gameState will block that
+				gapRect.add(new Rectangle(gapXs.get(i), 0, pipeBottom.getWidth()/4, Gdx.graphics.getHeight()));
 			}
 
 			//Making sure the player icon never falls below the screen
@@ -140,7 +148,15 @@ public class Flappy extends ApplicationAdapter {
 				if (Intersector.overlaps(playerRect, pipeBottomRect.get(i)) ||
 						Intersector.overlaps(playerRect, pipeTopRect.get(i))) {
 					Gdx.app.log("Collision", "You died!");
+					Gdx.app.log("Location Data", pipeTopLength.get(i) + ", " + playerHeight + ", " + pipeBottomLength.get(i));
+
 					gameState = 2;
+				}
+
+				//Adding the condition, i == score, solves the problem where score increased multiple times per pipe
+				if(Intersector.overlaps(playerRect, gapRect.get(i)) && gameState != 2 && i == score) {
+					score++;
+					Gdx.app.log("Score",  Integer.toString(score));
 				}
 			}
 			font.draw(batch, String.valueOf(score), 100, 200);
@@ -149,10 +165,12 @@ public class Flappy extends ApplicationAdapter {
 			if(Gdx.input.justTouched()) {
 				pipeCount = 0;
 				pipeXs.clear();
+				gapXs.clear();
 				pipeTopLength.clear();
 				pipeBottomLength.clear();
 				pipeTopRect.clear();
 				pipeBottomRect.clear();
+				gapRect.clear();
 				playerHeight = Gdx.graphics.getHeight()/2 - player.getHeight()/2;
 				score = 0;
 				gameState = 1;
